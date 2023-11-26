@@ -23,37 +23,44 @@ def main(args):
 
     prompter = ClarifaiPrompter(args.user_id, args.app_id, args.pat)
 
-    for i, query_input_example in enumerate(episode.query_input_examples):
-        raw_text_ner = build_llama2_prompt_plain(few_shot_examples=zip(episode.support_input_examples,
-                                                                       episode.support_output_examples),
-                                                 system_msg=system_message,
-                                                 input_example=query_input_example)
+    raw_texts_ner = [
+        build_llama2_prompt_plain(few_shot_examples=zip(episode.support_input_examples,
+                                                        episode.support_output_examples),
+                                  system_msg=system_message,
+                                  input_example=query_input_example)
+        for query_input_example in episode.query_input_examples
+    ]
+    outputs = prompter.predict(args.model_id, raw_texts_ner)
 
+    for query_input, raw_text, output, correct_output in zip(
+            episode.query_input_examples, raw_texts_ner, outputs, episode.query_output_examples
+    ):
         logging.info("PROMPT:\n")
-        logging.info(raw_text_ner + '\n')
-
-        output = prompter.predict(args.model_id, raw_text_ner)
+        logging.info(raw_text + '\n')
 
         logging.info("OUTPUT:\n")
         logging.info(output + "\n")
 
         logging.info("CORRECT OUTPUT:\n")
-        logging.info(episode.query_output_examples[i] + '\n')
+        logging.info(correct_output + '\n')
 
-        # Look at the first line only; the model tends to generate other stuff afterwards
         extracted_entities = extract_predicted_entities(output.split("\n")[0])
         logging.info(f"PREDICTED ENTITIES: {extracted_entities}\n")
-        for candidate in extracted_entities:
-            raw_text_verification = build_self_verification_prompt_plain(system_msg=system_message_verification,
-                                                                         input_example=query_input_example,
-                                                                         candidate_entity=candidate,
-                                                                         entity_class=args.entity_class)
-            verification_output = prompter.predict(args.model_id, raw_text_verification)
-            logging.info("VERIFICATION PROMPT:\n")
-            logging.info(raw_text_verification + '\n')
 
-            logging.info("VERIFICATION OUTPUT:\n")
-            logging.info(verification_output + "\n")
+        if extracted_entities:
+            raw_texts_verification = [build_self_verification_prompt_plain(system_msg=system_message_verification,
+                                                                           input_example=query_input,
+                                                                           candidate_entity=candidate,
+                                                                           entity_class=args.entity_class)
+                                      for candidate in extracted_entities]
+
+            verification_outputs = prompter.predict(args.model_id, raw_texts_verification)
+            for raw_text_verification, verification_output in zip(raw_texts_verification, verification_outputs):
+                logging.info("VERIFICATION PROMPT:\n")
+                logging.info(raw_text_verification + '\n')
+
+                logging.info("VERIFICATION OUTPUT:\n")
+                logging.info(verification_output + "\n")
 
 
 if __name__ == '__main__':
