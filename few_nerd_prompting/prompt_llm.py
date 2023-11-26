@@ -17,42 +17,43 @@ def main(args):
 
     system_message = f"I am an excellent linguist. The task is to label {args.entity_class} entities "\
                      "in the given sentence. Below are some examples:"
-    raw_text_ner = build_llama2_prompt_plain(few_shot_examples=zip(episode.support_input_examples,
-                                                                   episode.support_output_examples),
-                                             system_msg=system_message,
-                                             input_example=episode.query_input_examples[args.query_num])
 
     system_message_verification = f"The task is to verify whether the word is a "\
                                   f"{args.entity_class} entity extracted from the given sentence"
 
-    logging.info("PROMPT:\n")
-    logging.info(raw_text_ner + '\n')
-
     prompter = ClarifaiPrompter(args.user_id, args.app_id, args.pat)
-    output = prompter.predict(args.model_id, raw_text_ner)
 
-    logging.info("OUTPUT:\n")
-    logging.info(output + "\n")
+    for i, query_input_example in enumerate(episode.query_input_examples):
+        raw_text_ner = build_llama2_prompt_plain(few_shot_examples=zip(episode.support_input_examples,
+                                                                       episode.support_output_examples),
+                                                 system_msg=system_message,
+                                                 input_example=query_input_example)
 
-    logging.info("CORRECT OUTPUT:\n")
-    logging.info(episode.query_output_examples[args.query_num] + '\n')
+        logging.info("PROMPT:\n")
+        logging.info(raw_text_ner + '\n')
 
-    # Look at the first line only; the model tends to generate other stuff afterwards
-    extracted_entities = extract_predicted_entities(output.split("\n")[0])
-    logging.info(f"PREDICTED ENTITIES: {extracted_entities}\n")
-    for candidate in extracted_entities:
-        raw_text_verification = build_self_verification_prompt_plain(system_msg=system_message_verification,
-                                                                     input_example=episode.query_input_examples[
-                                                                         args.query_num
-                                                                     ],
-                                                                     candidate_entity=candidate,
-                                                                     entity_class=args.entity_class)
-        verification_output = prompter.predict(args.model_id, raw_text_verification)
-        logging.info("VERIFICATION PROMPT:\n")
-        logging.info(raw_text_verification + '\n')
+        output = prompter.predict(args.model_id, raw_text_ner)
 
-        logging.info("VERIFICATION OUTPUT:\n")
-        logging.info(verification_output + "\n")
+        logging.info("OUTPUT:\n")
+        logging.info(output + "\n")
+
+        logging.info("CORRECT OUTPUT:\n")
+        logging.info(episode.query_output_examples[i] + '\n')
+
+        # Look at the first line only; the model tends to generate other stuff afterwards
+        extracted_entities = extract_predicted_entities(output.split("\n")[0])
+        logging.info(f"PREDICTED ENTITIES: {extracted_entities}\n")
+        for candidate in extracted_entities:
+            raw_text_verification = build_self_verification_prompt_plain(system_msg=system_message_verification,
+                                                                         input_example=query_input_example,
+                                                                         candidate_entity=candidate,
+                                                                         entity_class=args.entity_class)
+            verification_output = prompter.predict(args.model_id, raw_text_verification)
+            logging.info("VERIFICATION PROMPT:\n")
+            logging.info(raw_text_verification + '\n')
+
+            logging.info("VERIFICATION OUTPUT:\n")
+            logging.info(verification_output + "\n")
 
 
 if __name__ == '__main__':
@@ -87,12 +88,6 @@ if __name__ == '__main__':
         default=0,
         type=int,
         help='Number of episode in file.'
-    )
-    parser.add_argument(
-        '-q', '--query_num',
-        default=1,
-        type=int,
-        help='Number of query sentence in episode.'
     )
     parser.add_argument(
         '-c', '--entity_class',
