@@ -19,7 +19,9 @@ def main(args):
                                   f"{args.entity_class} entity extracted from the given sentence"
     prompter = ClarifaiPrompter(args.user_id, args.app_id, args.pat)
 
+    episode_counter = 0
     for episode in all_episodes.episodes:
+        logging.info(f"Episode {episode_counter}")
         episode.gpt_ner_examples_from_episode(args.entity_class)
 
         raw_texts_ner = [
@@ -34,17 +36,13 @@ def main(args):
         for query_input, raw_text, output, correct_output in zip(
                 episode.query_input_examples, raw_texts_ner, outputs, episode.query_output_examples
         ):
-            logging.info("PROMPT:\n")
-            logging.info(raw_text + '\n')
-
-            logging.info("OUTPUT:\n")
-            logging.info(output + "\n")
-
-            logging.info("CORRECT OUTPUT:\n")
-            logging.info(correct_output + '\n')
-
+            logging.debug("PROMPT:\n")
+            logging.debug(raw_text + '\n')
+            output_first_line = output.split('\n')[0]
+            logging.info(f"OUTPUT (1st line): {output_first_line}")
+            logging.info(f"CORRECT OUTPUT: {correct_output}")
             extracted_entities = extract_predicted_entities(output.split("\n")[0])
-            logging.info(f"PREDICTED ENTITIES: {extracted_entities}\n")
+            logging.info(f"PREDICTED ENTITIES: {extracted_entities}")
 
             if extracted_entities:
                 raw_texts_verification = [build_self_verification_prompt_plain(system_msg=system_message_verification,
@@ -55,11 +53,10 @@ def main(args):
 
                 verification_outputs = prompter.predict(args.model_id, raw_texts_verification)
                 for raw_text_verification, verification_output in zip(raw_texts_verification, verification_outputs):
-                    logging.info("VERIFICATION PROMPT:\n")
-                    logging.info(raw_text_verification + '\n')
-
-                    logging.info("VERIFICATION OUTPUT:\n")
-                    logging.info(verification_output + "\n")
+                    logging.debug("VERIFICATION PROMPT:\n")
+                    logging.debug(raw_text_verification + '\n')
+                    logging.info(f"VERIFICATION OUTPUT: {verification_output}")
+        episode_counter += 1
 
 
 if __name__ == '__main__':
