@@ -7,6 +7,8 @@ from prompt_building_utils import make_output_example
 class FewNerdEpisodesSet:
     def __init__(self, filename):
         self.filename = filename
+        # The below code assumes file names as in the original FewNERD structure,
+        # e.g. Few-NERD/data/episode-data/intra/dev_5_1.jsonl for 5-way 1~2-shot
         # train / dev / test
         self.split = os.path.basename(filename).split("_")[0]
         # inter / intra
@@ -20,8 +22,9 @@ class FewNerdEpisodesSet:
 
     def read_file(self):
         with open(self.filename, 'r', encoding='utf8') as json_file:
-            episode_list = [FewNerdEpisode(json.loads(line.strip())) for line in json_file.readlines()]
-        return episode_list
+            for line in json_file:
+                episode = FewNerdEpisode(json.loads(line.strip()))
+                yield episode
 
 
 class FewNerdEpisode:
