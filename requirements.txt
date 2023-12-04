@@ -1,1 +1,2 @@
 clarifai-grpc==9.11.0
+nltk==3.6.7
