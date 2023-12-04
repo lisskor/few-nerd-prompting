@@ -1,4 +1,4 @@
-from few_nerd_prompting.prompt_building_utils import extract_predicted_entities, output_well_formed
+from few_nerd_prompting.prompt_building_utils import extract_predicted_entities, output_well_formed, labels_from_output
 from few_nerd_prompting.prompt_building_utils import TAG_START, TAG_END
 
 
@@ -87,3 +87,60 @@ class TestOutputWellFormed:
         snt = f"{TAG_END}We {TAG_START}live in {TAG_END}the swamp."
         assert output_well_formed(snt) is False
 
+
+class TestLabelsFromOutput:
+    """
+    Tests for the labels_from_output function
+    """
+
+    def test_labels_from_output_single_token(self):
+        # Test on single token entity
+        snt = " the @@geisel## library is considered his legacy at ucsd."
+        tokens = ["the", "geisel", "library", "is", "considered", "his", "legacy", "at", "ucsd", "."]
+        result = ["O", "event", "O", "O", "O", "O", "O", "O", "O", "O"]
+        assert labels_from_output(snt, tokens, "event") == result
+
+    def test_labels_from_output_single_tokens(self):
+        # Test on two single token entities
+        snt = " the @@geisel## library is considered his legacy at @@ucsd##."
+        tokens = ["the", "geisel", "library", "is", "considered", "his", "legacy", "at", "ucsd", "."]
+        result = ["O", "event", "O", "O", "O", "O", "O", "O", "event", "O"]
+        assert labels_from_output(snt, tokens, "event") == result
+
+    def test_labels_from_output_two_tokens(self):
+        # Test on two-token entity
+        snt = " the @@geisel library## is considered his legacy at ucsd."
+        tokens = ["the", "geisel", "library", "is", "considered", "his", "legacy", "at", "ucsd", "."]
+        result = ["O", "event", "event", "O", "O", "O", "O", "O", "O", "O"]
+        assert labels_from_output(snt, tokens, "event") == result
+
+    def test_labels_from_output_three_tokens(self):
+        # Test on two-token entity
+        snt = " the @@geisel library is## considered his legacy at ucsd."
+        tokens = ["the", "geisel", "library", "is", "considered", "his", "legacy", "at", "ucsd", "."]
+        result = ["O", "event", "event", "event", "O", "O", "O", "O", "O", "O"]
+        assert labels_from_output(snt, tokens, "event") == result
+
+    def test_labels_from_output_multiple_entities_multiple_tokens(self):
+        # Test on two-token entity
+        snt = " the @@geisel library is## considered @@his legacy## at ucsd."
+        tokens = ["the", "geisel", "library", "is", "considered", "his", "legacy", "at", "ucsd", "."]
+        result = ["O", "event", "event", "event", "O", "event", "event", "O", "O", "O"]
+        assert labels_from_output(snt, tokens, "event") == result
+
+    def test_labels_from_output_pomona_valley(self):
+        snt = " he died at the age of 81, on november 10, 2001, the @@pomona valley hospital medical center## in pomona, california."
+        tokens = ["he", "died", "at", "the", "age", "of", "81", ",", "on", "november", "10", ",", "2001", ",",
+                  "the", "pomona", "valley", "hospital", "medical", "center", "in", "pomona", ",", "california", "."]
+        result = ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O",
+                  "O", "event", "event", "event", "event", "event", "O", "O", "O", "O", "O"]
+        assert labels_from_output(snt, tokens, "event") == result
+
+    def test_labels_from_output_gotov_je(self):
+        # Sentence below is a mix of the correct output and the actual output with partial detokenization
+        snt = "during the presidential campaign of september 2000, otpor launched its ``` @@gotov je## ``` ( @@he's finished!## )"
+        tokens = ["during", "the", "presidential", "campaign", "of", "september", "2000", ",", "otpor", "launched",
+                  "its", "``", "gotov", "je", "``", "(", "he", "'s", "finished", "!", ")"]
+        result = ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O",
+                  "O", "O", "event", "event", "O", "O", "event", "event", "event", "event", "O"]
+        assert labels_from_output(snt, tokens, "event") == result

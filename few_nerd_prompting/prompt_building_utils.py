@@ -1,3 +1,6 @@
+from nltk import word_tokenize
+
+
 TAG_START = "@@"
 TAG_END = "##"
 
@@ -124,3 +127,25 @@ def build_self_verification_prompt_plain(system_msg, input_example, candidate_en
     result = f"{system_msg}\n{prompt_string}"
     return result
 
+
+def labels_from_output(llm_output, input_tokens, entity_class):
+    # TODO: What to do with different punctuation in input and output? e.g. ``` vs. ``
+    # TODO: What to do when tokens don't match? e.g. "ohne filter" translated into "without filter"
+    predicted_entities = extract_predicted_entities(llm_output)
+    temp_input_tokens = [t for t in input_tokens]
+    result_pairs = [[token, "O"] for token in input_tokens]
+    result_index = 0
+
+    for entity in predicted_entities:
+        # NLTK tokenizer as described in Few-NERD paper
+        entity_tokens = word_tokenize(entity)
+        matched_tokens = 0
+        while entity_tokens:
+            if temp_input_tokens[0] == entity_tokens[0]:
+                result_pairs[result_index][1] = entity_class
+                matched_tokens += 1
+                entity_tokens.pop(0)
+
+            temp_input_tokens.pop(0)
+            result_index += 1
+    return [t[1] for t in result_pairs]
