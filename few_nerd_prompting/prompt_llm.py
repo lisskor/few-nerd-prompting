@@ -4,7 +4,7 @@ import json
 
 from read_few_nerd import FewNerdEpisodesSet
 from clarifai_prompter import ClarifaiPrompter
-from prompt_building_utils import build_llama2_prompt_plain, build_self_verification_prompt_plain
+from prompt_building_utils import build_llama2_prompt_plain, build_self_verification_prompt_plain, labels_from_output
 from prompt_building_utils import extract_predicted_entities
 
 logging.basicConfig(format="{asctime} {levelname}: {message}",
@@ -38,7 +38,9 @@ def main(args):
                 for query_input_example in episode.query_input_examples
             ]
             outputs = prompter.predict(args.model_id, raw_texts_ner)
-            result["text"] = [o.split("\n")[0] for o in outputs]
+            result["text"] = [output.split("\n")[0] for output in outputs]
+            result["label"] = [labels_from_output(output, input_tokens, args.entity_class)
+                               for output, input_tokens in zip(result["text"], episode.query_tokens)]
             out_fh.write(json.dumps(result) + "\n")
 
             for query_input, raw_text, output, correct_output in zip(

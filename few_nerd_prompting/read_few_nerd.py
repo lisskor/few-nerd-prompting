@@ -32,6 +32,9 @@ class FewNerdEpisode:
         self.support_set = episode_dict['support']
         self.query_set = episode_dict['query']
 
+        self.query_tokens = self.query_set['word']
+        self.query_labels = self.query_set['label']
+
         self.support_input_examples, self.support_output_examples = None, None
         self.query_input_examples, self.query_output_examples = None, None
 
