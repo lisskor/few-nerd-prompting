@@ -77,7 +77,7 @@ def output_well_formed(sentence: str) -> bool:
                     end_pos = sentence.find(TAG_END, start_pos + 2, end)
 
 
-def extract_predicted_entities(sentence: str) -> List(str):
+def extract_predicted_entities(sentence: str) -> List[str]:
     predicted_entities = []
     start, end = 0, len(sentence)
     # Look for TAG_START
