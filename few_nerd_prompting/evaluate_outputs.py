@@ -1,5 +1,6 @@
 import argparse
 import json
+from typing import List
 
 from seqeval.metrics import accuracy_score, precision_score, recall_score, f1_score
 from seqeval.metrics import classification_report
@@ -7,15 +8,15 @@ from seqeval.metrics import classification_report
 from read_few_nerd import FewNerdEpisodesSet
 
 
-def coarse_grained_from_fine_grained(labels):
+def coarse_grained_from_fine_grained(labels: List[str]) -> List[str]:
     return [label if label == "O" else label.split("-")[0] for label in labels]
 
 
-def single_class(labels, entity_class):
+def single_class(labels: List[str], entity_class: str) -> List[str]:
     return [label if label == entity_class else "O" for label in labels]
 
 
-def get_true_labels(filename, entity_class, max_episodes=None, coarse_grained=True):
+def get_true_labels(filename: str, entity_class: str, max_episodes: int = None, coarse_grained: bool = True) -> List[List[str]]:
     all_episodes = FewNerdEpisodesSet(filename)
     all_true_labels = []
 
@@ -34,7 +35,7 @@ def get_true_labels(filename, entity_class, max_episodes=None, coarse_grained=Tr
     return all_true_labels
 
 
-def read_predicted_labels(filename):
+def read_predicted_labels(filename: str) -> List[str]:
     all_predicted_labels = []
     with open(filename, 'r', encoding="utf8") as fh:
         for line in fh.readlines():
@@ -42,7 +43,7 @@ def read_predicted_labels(filename):
     return all_predicted_labels
 
 
-def report(y_true, y_pred):
+def report(y_true: List[str], y_pred: List[str]):
     print(f"ACC: {accuracy_score(y_true, y_pred)}")
     print(f"PREC: {precision_score(y_true, y_pred)}")
     print(f"REC: {recall_score(y_true, y_pred)}")
