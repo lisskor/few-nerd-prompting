@@ -1,8 +1,31 @@
 import os
 import json
 
+from typing import Generator, Dict
+
 from prompt_building_utils import make_output_example
 
+
+class FewNerdEpisode:
+    def __init__(self, episode_dict: Dict):
+        self.support_set = episode_dict['support']
+        self.query_set = episode_dict['query']
+
+        self.query_tokens = self.query_set['word']
+        self.query_labels = self.query_set['label']
+
+        self.support_input_examples, self.support_output_examples = None, None
+        self.query_input_examples, self.query_output_examples = None, None
+
+    def gpt_ner_examples_from_episode(self, entity_class: str):
+        self.support_input_examples = [' '.join(sentence) for sentence in self.support_set['word']]
+        self.support_output_examples = [make_output_example(sentence, labels, entity_class)
+                                        for sentence, labels in
+                                        zip(self.support_set['word'], self.support_set['label'])]
+
+        self.query_input_examples = [' '.join(sentence) for sentence in self.query_set['word']]
+        self.query_output_examples = [make_output_example(sentence, labels, entity_class)
+                                      for sentence, labels in zip(self.query_set['word'], self.query_set['label'])]
 
 class FewNerdEpisodesSet:
     def __init__(self, filename):
@@ -20,27 +43,8 @@ class FewNerdEpisodesSet:
 
         self.episodes = self.read_file()
 
-    def read_file(self):
+    def read_file(self) -> Generator[FewNerdEpisode]:
         with open(self.filename, 'r', encoding='utf8') as json_file:
             for line in json_file:
                 episode = FewNerdEpisode(json.loads(line.strip()))
                 yield episode
-
-
-class FewNerdEpisode:
-    def __init__(self, episode_dict):
-        self.support_set = episode_dict['support']
-        self.query_set = episode_dict['query']
-
-        self.support_input_examples, self.support_output_examples = None, None
-        self.query_input_examples, self.query_output_examples = None, None
-
-    def gpt_ner_examples_from_episode(self, entity_class):
-        self.support_input_examples = [' '.join(sentence) for sentence in self.support_set['word']]
-        self.support_output_examples = [make_output_example(sentence, labels, entity_class)
-                                        for sentence, labels in
-                                        zip(self.support_set['word'], self.support_set['label'])]
-
-        self.query_input_examples = [' '.join(sentence) for sentence in self.query_set['word']]
-        self.query_output_examples = [make_output_example(sentence, labels, entity_class)
-                                      for sentence, labels in zip(self.query_set['word'], self.query_set['label'])]
