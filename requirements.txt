@@ -1,3 +1,4 @@
 clarifai-grpc==9.11.0
 nltk==3.6.7
 seqeval==1.2.2
+pytest==7.2.0
