@@ -16,7 +16,7 @@ def single_class(labels: List[str], entity_class: str) -> List[str]:
     return [label if label == entity_class else "O" for label in labels]
 
 
-def get_true_labels(filename: str, entity_class: str, max_episodes: int = None, coarse_grained: bool = True) -> List[List[str]]:
+def get_true_labels(filename: str, entity_class: str, max_episodes: int = None, coarse_grained: bool = True) -> List[List[List[str]]]:
     all_episodes = FewNerdEpisodesSet(filename)
     all_true_labels = []
 
@@ -35,7 +35,7 @@ def get_true_labels(filename: str, entity_class: str, max_episodes: int = None, 
     return all_true_labels
 
 
-def read_predicted_labels(filename: str) -> List[str]:
+def read_predicted_labels(filename: str) -> List[List[List[str]]]:
     all_predicted_labels = []
     with open(filename, 'r', encoding="utf8") as fh:
         for line in fh.readlines():
@@ -43,7 +43,7 @@ def read_predicted_labels(filename: str) -> List[str]:
     return all_predicted_labels
 
 
-def report(y_true: List[str], y_pred: List[str]):
+def report(y_true: List[List[str]], y_pred: List[List[str]]):
     print(f"ACC: {accuracy_score(y_true, y_pred)}")
     print(f"PREC: {precision_score(y_true, y_pred)}")
     print(f"REC: {recall_score(y_true, y_pred)}")
