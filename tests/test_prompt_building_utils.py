@@ -144,3 +144,18 @@ class TestLabelsFromOutput:
         result = ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O",
                   "O", "O", "event", "event", "O", "O", "event", "event", "event", "event", "O"]
         assert labels_from_output(snt, tokens, "event") == result
+
+    def test_labels_from_output_shorter_output(self):
+        # Sentence below is a mix of the correct output and the actual output with partial detokenization
+        snt = " north of this area and u.s. highway 90a is the sugar land regional airport and the recently decommissioned @@texas department of corrections central unit##."
+        tokens = ["north", "of", "this", "area", "and", "u.s.", "highway", "90a", "is", "the", "sugar", "land",
+                  "regional", "airport", "and", "the", "recently", "decommissioned", "texas", "department", "of",
+                  "corrections", "central", "unit", ",", "which", "in", "2011", "became", "the", "first", "texas",
+                  "prison", "to", "be", "closed", "without", "a", "replacement", "facility", "and", "is", "being",
+                  "targeted", "by", "the", "city", "for", "future", "light", "industrial", "development", "."]
+        result = ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O",
+                  "O", "O", "O", "O", "O", "O", "event", "event", "event",
+                  "event", "event", "event", "O", "O", "O", "O", "O", "O", "O", "O",
+                  "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O",
+                  "O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]
+        assert labels_from_output(snt, tokens, "event") == result
