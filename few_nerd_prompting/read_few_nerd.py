@@ -27,6 +27,7 @@ class FewNerdEpisode:
         self.query_output_examples = [make_output_example(sentence, labels, entity_class)
                                       for sentence, labels in zip(self.query_set['word'], self.query_set['label'])]
 
+
 class FewNerdEpisodesSet:
     def __init__(self, filename):
         self.filename = filename
@@ -43,7 +44,7 @@ class FewNerdEpisodesSet:
 
         self.episodes = self.read_file()
 
-    def read_file(self) -> Generator[FewNerdEpisode]:
+    def read_file(self) -> Generator[FewNerdEpisode, None, None]:
         with open(self.filename, 'r', encoding='utf8') as json_file:
             for line in json_file:
                 episode = FewNerdEpisode(json.loads(line.strip()))

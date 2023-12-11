@@ -40,4 +40,4 @@ class ClarifaiPrompter:
                 logging.error(post_model_outputs_response.status)
                 raise Exception("Post model outputs failed, status: " + post_model_outputs_response.status.description)
             logging.info(f"Prompt trial {i} failed. Sleeping for one minute.")
-            time.sleep(60)
+            time.sleep(10)
