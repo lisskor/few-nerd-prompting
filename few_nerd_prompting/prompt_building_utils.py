@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple, Iterator
 
 from nltk import word_tokenize
 
@@ -105,7 +105,7 @@ def build_llama2_prompt(few_shot_examples: List[str], system_msg: str, input_exa
     return f"<s>[INST] <<SYS>>\n{system_msg}\n{few_shot_examples_string}<</SYS>>\n{input_example_string}\nOutput: [/INST]"
 
 
-def build_llama2_prompt_plain(few_shot_examples: List[str], system_msg: str, input_example: str) -> str:
+def build_llama2_prompt_plain(few_shot_examples: Iterator[Tuple[str, str]], system_msg: str, input_example: str) -> str:
     # Plain text prompt, no special tokens
     # Works better for this task
     few_shot_examples_string = "\n".join([f"Input: {example[0]}\nOutput: {example[1]}"
