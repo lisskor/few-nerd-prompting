@@ -14,10 +14,11 @@ logging.basicConfig(format="{asctime} {levelname}: {message}",
 def main(args):
     all_episodes = FewNerdEpisodesSet(args.data_file)
 
-    system_message = f"I am an excellent linguist. The task is to label {args.entity_class} entities " \
-                     "in the given sentence. Below are some examples:"
-    system_message_verification = f"The task is to verify whether the word is a " \
-                                  f"{args.entity_class} entity extracted from the given sentence"
+    system_messages = {entity_class: f"I am an excellent linguist. The task is to label {entity_class} entities "
+                       "in the given sentence. Below are some examples:" for entity_class in args.entity_classes}
+    system_messages_verification = {entity_class: f"The task is to verify whether the word is a "
+                                    f"{entity_class} entity extracted from the given sentence"
+                                    for entity_class in args.entity_classes}
     prompter = ClarifaiPrompter(args.user_id, args.app_id, args.pat)
 
     with open(args.output_file, 'w', encoding='utf8') as out_fh:
@@ -26,48 +27,52 @@ def main(args):
         for episode in all_episodes.episodes:
             if episode_counter > args.max_episodes:
                 break
-            result = {"text": [], "label": []}
+            result = {"text": {entity_class: [] for entity_class in args.entity_classes},
+                      "label": {entity_class: [] for entity_class in args.entity_classes}}
             logging.info(f"Episode {episode_counter}")
-            episode.gpt_ner_examples_from_episode(args.entity_class)
 
-            raw_texts_ner = [
-                build_llama2_prompt_plain(few_shot_examples=zip(episode.support_input_examples,
-                                                                episode.support_output_examples),
-                                          system_msg=system_message,
-                                          input_example=query_input_example)
-                for query_input_example in episode.query_input_examples
-            ]
-            outputs = prompter.predict(args.model_id, raw_texts_ner)
-            result["text"] = [output.split("\n")[0] for output in outputs]
-            result["label"] = [labels_from_output(output, input_tokens, args.entity_class)
-                               for output, input_tokens in zip(result["text"], episode.query_tokens)]
+            for entity_class in args.entity_classes:
+                logging.info(f"Class: {entity_class}")
+                episode.gpt_ner_examples_from_episode(entity_class)
+
+                for query_input_example, input_tokens, correct_output in zip(
+                        episode.query_input_examples, episode.query_tokens, episode.query_output_examples
+                ):
+                    raw_text_ner = build_llama2_prompt_plain(few_shot_examples=zip(episode.support_input_examples,
+                                                                                   episode.support_output_examples),
+                                                             system_msg=system_messages[entity_class],
+                                                             input_example=query_input_example)
+                    logging.debug("PROMPT:\n")
+                    logging.debug(raw_text_ner + '\n')
+                    output = prompter.predict(args.model_id, [raw_text_ner])[0]
+                    output_first_line = output.split('\n')[0]
+                    result["text"][entity_class].append(output_first_line)
+                    result["label"][entity_class].append(labels_from_output(output_first_line,
+                                                                            input_tokens,
+                                                                            entity_class))
+
+                    logging.info(f"OUTPUT (1st line): {output_first_line}")
+                    logging.info(f"CORRECT OUTPUT: {correct_output}")
+
+                    extracted_entities = extract_predicted_entities(output_first_line)
+                    logging.info(f"PREDICTED ENTITIES: {extracted_entities}")
+
+                    if extracted_entities:
+                        raw_texts_verification = [build_self_verification_prompt_plain(
+                            system_msg=system_messages_verification[entity_class],
+                            input_example=query_input_example,
+                            candidate_entity=candidate,
+                            entity_class=entity_class
+                        )
+                            for candidate in extracted_entities]
+
+                        for verification_prompt in raw_texts_verification:
+                            verification_output = prompter.predict(args.model_id, [verification_prompt])[0]
+                            logging.debug("VERIFICATION PROMPT:\n")
+                            logging.debug(verification_prompt + '\n')
+                            logging.info(f"VERIFICATION OUTPUT: {verification_output}")
+
             out_fh.write(json.dumps(result) + "\n")
-
-            for query_input, raw_text, output, correct_output in zip(
-                    episode.query_input_examples, raw_texts_ner, outputs, episode.query_output_examples
-            ):
-                logging.debug("PROMPT:\n")
-                logging.debug(raw_text + '\n')
-                output_first_line = output.split('\n')[0]
-                logging.info(f"OUTPUT (1st line): {output_first_line}")
-                logging.info(f"CORRECT OUTPUT: {correct_output}")
-                extracted_entities = extract_predicted_entities(output.split("\n")[0])
-                logging.info(f"PREDICTED ENTITIES: {extracted_entities}")
-
-                if extracted_entities:
-                    raw_texts_verification = [build_self_verification_prompt_plain(
-                        system_msg=system_message_verification,
-                        input_example=query_input,
-                        candidate_entity=candidate,
-                        entity_class=args.entity_class
-                    )
-                        for candidate in extracted_entities]
-
-                    verification_outputs = prompter.predict(args.model_id, raw_texts_verification)
-                    for raw_text_verification, verification_output in zip(raw_texts_verification, verification_outputs):
-                        logging.debug("VERIFICATION PROMPT:\n")
-                        logging.debug(raw_text_verification + '\n')
-                        logging.info(f"VERIFICATION OUTPUT: {verification_output}")
             episode_counter += 1
 
 
@@ -99,10 +104,11 @@ if __name__ == '__main__':
         help='File with episode data.'
     )
     parser.add_argument(
-        '-c', '--entity_class',
-        default='event',
+        '-c', '--entity_classes',
+        default=['event'],
         type=str,
-        help='Entity class for current demonstration & input.'
+        nargs='+',
+        help='Entity classes for current demonstration & input.'
     )
     parser.add_argument(
         '-o', '--output_file',
