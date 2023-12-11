@@ -1,11 +1,15 @@
 import argparse
 import json
+import logging
 from typing import List
 
 from seqeval.metrics import accuracy_score, precision_score, recall_score, f1_score
 from seqeval.metrics import classification_report
 
 from read_few_nerd import FewNerdEpisodesSet
+
+logging.basicConfig(format="{asctime} {levelname}: {message}",
+                    style="{", level=logging.INFO)
 
 
 def coarse_grained_from_fine_grained(labels: List[str]) -> List[str]:
@@ -35,11 +39,11 @@ def get_true_labels(filename: str, entity_class: str, max_episodes: int = None, 
     return all_true_labels
 
 
-def read_predicted_labels(filename: str) -> List[List[List[str]]]:
+def read_predicted_labels_single_class(filename: str, entity_class: str) -> List[List[List[str]]]:
     all_predicted_labels = []
     with open(filename, 'r', encoding="utf8") as fh:
         for line in fh.readlines():
-            all_predicted_labels.append(json.loads(line.strip())['label'])
+            all_predicted_labels.append(json.loads(line.strip())['label'][entity_class])
     return all_predicted_labels
 
 
@@ -48,23 +52,18 @@ def report(y_true: List[List[str]], y_pred: List[List[str]]):
     print(f"PREC: {precision_score(y_true, y_pred)}")
     print(f"REC: {recall_score(y_true, y_pred)}")
     print(f"F1: {f1_score(y_true, y_pred)}")
-    print(classification_report(y_true, y_pred))
+    # print(classification_report(y_true, y_pred))
 
 
 def main(args):
-    pred_labels = read_predicted_labels(args.pred_file)
-    true_labels = get_true_labels(args.few_nerd_file, args.entity_class, len(pred_labels))
+    for entity_class in args.entity_classes:
+        pred_labels = read_predicted_labels_single_class(args.pred_file, entity_class)
+        true_labels = get_true_labels(args.few_nerd_file, entity_class, len(pred_labels))
 
-    # print(len([item for sublist in pred_labels for item in sublist]))
-    # print(len([item for sublist in true_labels for item in sublist]))
-    # for pl, tl in zip([item for sublist in pred_labels for item in sublist],
-    #                   [item for sublist in true_labels for item in sublist]):
-    #     print(f"TRUE: {tl}")
-    #     print(f"PRED: {pl}")
-    #     print("\n")
+        logging.info(f"Class: {entity_class}")
 
-    report([item for sublist in true_labels for item in sublist],
-           [item for sublist in pred_labels for item in sublist])
+        report([item for sublist in true_labels for item in sublist],
+               [item for sublist in pred_labels for item in sublist])
 
 
 if __name__ == '__main__':
@@ -80,10 +79,11 @@ if __name__ == '__main__':
         help='File with LLM predictions.'
     )
     parser.add_argument(
-        '-c', '--entity_class',
-        default='event',
+        '-c', '--entity_classes',
+        default=['event'],
         type=str,
-        help='Entity class for current demonstration & input.'
+        nargs='+',
+        help='Entity classes for current demonstration & input.'
     )
 
     arguments = parser.parse_args()
