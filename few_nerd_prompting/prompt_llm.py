@@ -46,31 +46,33 @@ def main(args):
                     logging.debug(raw_text_ner + '\n')
                     output = prompter.predict(args.model_id, [raw_text_ner])[0]
                     output_first_line = output.split('\n')[0]
+
+                    logging.info(f"OUTPUT (1st line): {output_first_line}")
+                    logging.info(f"CORRECT OUTPUT: {correct_output}")
+
                     result["text"][entity_class].append(output_first_line)
                     result["label"][entity_class].append(labels_from_output(output_first_line,
                                                                             input_tokens,
                                                                             entity_class))
 
-                    logging.info(f"OUTPUT (1st line): {output_first_line}")
-                    logging.info(f"CORRECT OUTPUT: {correct_output}")
-
                     extracted_entities = extract_predicted_entities(output_first_line)
                     logging.info(f"PREDICTED ENTITIES: {extracted_entities}")
 
-                    if extracted_entities:
-                        raw_texts_verification = [build_self_verification_prompt_plain(
-                            system_msg=system_messages_verification[entity_class],
-                            input_example=query_input_example,
-                            candidate_entity=candidate,
-                            entity_class=entity_class
-                        )
-                            for candidate in extracted_entities]
+                    if args.verification:
+                        if extracted_entities:
+                            raw_texts_verification = [build_self_verification_prompt_plain(
+                                system_msg=system_messages_verification[entity_class],
+                                input_example=query_input_example,
+                                candidate_entity=candidate,
+                                entity_class=entity_class
+                            )
+                                for candidate in extracted_entities]
 
-                        for verification_prompt in raw_texts_verification:
-                            verification_output = prompter.predict(args.model_id, [verification_prompt])[0]
-                            logging.debug("VERIFICATION PROMPT:\n")
-                            logging.debug(verification_prompt + '\n')
-                            logging.info(f"VERIFICATION OUTPUT: {verification_output}")
+                            for verification_prompt in raw_texts_verification:
+                                verification_output = prompter.predict(args.model_id, [verification_prompt])[0]
+                                logging.debug("VERIFICATION PROMPT:\n")
+                                logging.debug(verification_prompt + '\n')
+                                logging.info(f"VERIFICATION OUTPUT: {verification_output}")
 
             out_fh.write(json.dumps(result) + "\n")
             episode_counter += 1
@@ -121,6 +123,11 @@ if __name__ == '__main__':
         default=10,
         type=int,
         help='Max episodes to process (primarily for testing purposes)'
+    )
+    parser.add_argument(
+        '--verification',
+        action='store_true',
+        help='Use self-verification'
     )
 
     arguments = parser.parse_args()
