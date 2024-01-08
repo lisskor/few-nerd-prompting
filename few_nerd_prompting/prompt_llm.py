@@ -1,11 +1,15 @@
 import argparse
 import logging
 import json
+import time
+
+from itertools import repeat
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 from read_few_nerd import FewNerdEpisodesSet
 from clarifai_prompter import ClarifaiPrompter
-from prompt_building_utils import build_llama2_prompt_plain, build_self_verification_prompt_plain, labels_from_output
-from prompt_building_utils import extract_predicted_entities
+from prompt_building_utils import build_llama2_prompt_plain, labels_from_output
 
 logging.basicConfig(format="{asctime} {levelname}: {message}",
                     style="{", level=logging.INFO)
@@ -16,9 +20,6 @@ def main(args):
 
     system_messages = {entity_class: f"I am an excellent linguist. The task is to label {entity_class} entities "
                        "in the given sentence. Below are some examples:" for entity_class in args.entity_classes}
-    system_messages_verification = {entity_class: f"The task is to verify whether the word is a "
-                                    f"{entity_class} entity extracted from the given sentence"
-                                    for entity_class in args.entity_classes}
     prompter = ClarifaiPrompter(args.user_id, args.app_id, args.pat)
 
     with open(args.output_file, 'w', encoding='utf8') as out_fh:
@@ -27,54 +28,47 @@ def main(args):
         for episode in all_episodes.episodes:
             if episode_counter > args.max_episodes:
                 break
-            result = {"text": {entity_class: [] for entity_class in args.entity_classes},
-                      "label": {entity_class: [] for entity_class in args.entity_classes}}
+            results = {"text": {entity_class: [] for entity_class in args.entity_classes},
+                       "label": {entity_class: [] for entity_class in args.entity_classes}}
             logging.info(f"Episode {episode_counter}")
 
             for entity_class in args.entity_classes:
                 logging.info(f"Class: {entity_class}")
                 episode.gpt_ner_examples_from_episode(entity_class)
 
-                for query_input_example, input_tokens, correct_output in zip(
-                        episode.query_input_examples, episode.query_tokens, episode.query_output_examples
-                ):
-                    raw_text_ner = build_llama2_prompt_plain(few_shot_examples=zip(episode.support_input_examples,
-                                                                                   episode.support_output_examples),
-                                                             system_msg=system_messages[entity_class],
-                                                             input_example=query_input_example)
-                    logging.debug("PROMPT:\n")
-                    logging.debug(raw_text_ner + '\n')
-                    output = prompter.predict(args.model_id, [raw_text_ner])[0]
-                    output_first_line = output.split('\n')[0]
+                raw_texts_ner = [
+                    (build_llama2_prompt_plain(few_shot_examples=zip(episode.support_input_examples,
+                                                                     episode.support_output_examples),
+                                               system_msg=system_messages[entity_class],
+                                               input_example=query_input_example),
+                     i)
+                    for i, query_input_example in enumerate(episode.query_input_examples)
+                ]
 
-                    logging.info(f"OUTPUT (1st line): {output_first_line}")
-                    logging.info(f"CORRECT OUTPUT: {correct_output}")
+                threads = []
+                output_first_lines = []
 
-                    result["text"][entity_class].append(output_first_line)
-                    result["label"][entity_class].append(labels_from_output(output_first_line,
-                                                                            input_tokens,
-                                                                            entity_class))
+                with ThreadPoolExecutor(max_workers=10) as executor:
+                    for raw_text, query_index in tqdm(
+                        raw_texts_ner,
+                        total=len(episode.query_input_examples),
+                        desc="Getting predictions p1"
+                    ):
+                        threads.append(executor.submit(prompter.predict, args.model_id, raw_text, query_index))
 
-                    extracted_entities = extract_predicted_entities(output_first_line)
-                    logging.info(f"PREDICTED ENTITIES: {extracted_entities}")
+                    for task in tqdm(as_completed(threads), total=len(raw_texts_ner), desc='Getting predictions p2'):
+                        result_text, result_id = task.result()
+                        output_first_lines.append((result_text.split('\n')[0], result_id))
 
-                    if args.verification:
-                        if extracted_entities:
-                            raw_texts_verification = [build_self_verification_prompt_plain(
-                                system_msg=system_messages_verification[entity_class],
-                                input_example=query_input_example,
-                                candidate_entity=candidate,
-                                entity_class=entity_class
-                            )
-                                for candidate in extracted_entities]
+                results["text"][entity_class] = [t[0] for t in sorted(output_first_lines, key=lambda x: x[1])]
+                results["label"][entity_class] = [labels_from_output(output, input_tokens, entity_class)
+                                                  for output, input_tokens in zip(results["text"][entity_class],
+                                                                                  episode.query_tokens)]
 
-                            for verification_prompt in raw_texts_verification:
-                                verification_output = prompter.predict(args.model_id, [verification_prompt])[0]
-                                logging.debug("VERIFICATION PROMPT:\n")
-                                logging.debug(verification_prompt + '\n')
-                                logging.info(f"VERIFICATION OUTPUT: {verification_output}")
+                logging.info(f"OUTPUT (1st lines): {results['text'][entity_class]}")
+                logging.info(f"CORRECT OUTPUT: {episode.query_output_examples}")
 
-            out_fh.write(json.dumps(result) + "\n")
+            out_fh.write(json.dumps(results) + "\n")
             episode_counter += 1
 
 
