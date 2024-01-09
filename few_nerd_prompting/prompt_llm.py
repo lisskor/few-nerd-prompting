@@ -32,39 +32,44 @@ def main(args):
                        "label": {entity_class: [] for entity_class in args.entity_classes}}
             logging.info(f"Episode {episode_counter}")
 
+            raw_texts_ner = []
             for entity_class in args.entity_classes:
-                logging.info(f"Class: {entity_class}")
                 episode.gpt_ner_examples_from_episode(entity_class)
-
-                raw_texts_ner = [
+                raw_texts_ner.extend([
                     (build_llama2_prompt_plain(few_shot_examples=zip(episode.support_input_examples,
                                                                      episode.support_output_examples),
                                                system_msg=system_messages[entity_class],
                                                input_example=query_input_example),
-                     i)
+                     (episode_counter, entity_class, i))
                     for i, query_input_example in enumerate(episode.query_input_examples)
-                ]
+                ])
 
-                threads = []
-                output_first_lines = []
+            threads = []
+            output_first_lines = {entity_class: [] for entity_class in args.entity_classes}
 
-                with ThreadPoolExecutor(max_workers=10) as executor:
-                    for raw_text, query_index in tqdm(
-                        raw_texts_ner,
-                        total=len(episode.query_input_examples),
-                        desc="Getting predictions p1"
-                    ):
-                        threads.append(executor.submit(prompter.predict, args.model_id, raw_text, query_index))
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                for raw_text, query_index in tqdm(
+                    raw_texts_ner,
+                    total=len(episode.query_input_examples) * len(args.entity_classes),
+                    desc="Getting predictions p1"
+                ):
+                    threads.append(executor.submit(prompter.predict, args.model_id, raw_text, query_index))
 
-                    for task in tqdm(as_completed(threads), total=len(raw_texts_ner), desc='Getting predictions p2'):
-                        result_text, result_id = task.result()
-                        output_first_lines.append((result_text.split('\n')[0], result_id))
+                for task in tqdm(as_completed(threads), total=len(raw_texts_ner), desc='Getting predictions p2'):
+                    result_text, (episode_id, entity_class, query_id) = task.result()
+                    output_first_lines[entity_class].append((result_text.split('\n')[0], query_id))
 
-                results["text"][entity_class] = [t[0] for t in sorted(output_first_lines, key=lambda x: x[1])]
+            logging.info(output_first_lines)
+
+            for entity_class in args.entity_classes:
+                episode.gpt_ner_examples_from_episode(entity_class)
+                results["text"][entity_class] = [t[0] for t
+                                                 in sorted(output_first_lines[entity_class], key=lambda x: x[1])]
                 results["label"][entity_class] = [labels_from_output(output, input_tokens, entity_class)
                                                   for output, input_tokens in zip(results["text"][entity_class],
                                                                                   episode.query_tokens)]
 
+                logging.info(f"CLASS: {entity_class}")
                 logging.info(f"OUTPUT (1st lines): {results['text'][entity_class]}")
                 logging.info(f"CORRECT OUTPUT: {episode.query_output_examples}")
 
@@ -119,9 +124,10 @@ if __name__ == '__main__':
         help='Max episodes to process (primarily for testing purposes)'
     )
     parser.add_argument(
-        '--verification',
-        action='store_true',
-        help='Use self-verification'
+        '--episode_ids',
+        type=int,
+        nargs='+',
+        help='Episode IDs to predict'
     )
 
     arguments = parser.parse_args()
