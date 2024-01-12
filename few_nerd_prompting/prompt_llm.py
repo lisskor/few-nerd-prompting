@@ -23,8 +23,6 @@ def main(args):
 
     last_episode_id = args.first_episode + args.n_episodes if args.n_episodes else None
 
-    all_results = []
-
     with open(args.output_file, 'w', encoding='utf8') as out_fh:
         episode_id = args.first_episode
         for episode in islice(all_episodes.episodes, args.first_episode, last_episode_id):
@@ -64,16 +62,18 @@ def main(args):
                 results[episode_id]["text"][entity_class] = [t[0] for t
                                                              in sorted(output_first_lines[entity_class],
                                                                        key=lambda x: x[1])]
-                results[episode_id]["label"][entity_class] = [labels_from_output(output, input_tokens, entity_class)
-                                                              for output, input_tokens
-                                                              in zip(results[episode_id]["text"][entity_class],
-                                                                     episode.query_tokens)]
+                for output, input_tokens in zip(results[episode_id]["text"][entity_class],
+                                                episode.query_tokens):
+                    try:
+                        class_labels = labels_from_output(output, input_tokens, entity_class)
+                    except IndexError:
+                        class_labels = []
+                    results[episode_id]["label"][entity_class].append(class_labels)
 
                 logging.info(f"CLASS: {entity_class}")
                 logging.info(f"OUTPUT (1st lines): {results[episode_id]['text'][entity_class]}")
                 logging.info(f"CORRECT OUTPUT: {episode.query_output_examples}")
 
-            all_results.append(results)
             out_fh.write(json.dumps(results) + "\n")
             episode_id += 1
 
