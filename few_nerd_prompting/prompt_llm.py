@@ -19,7 +19,7 @@ def main(args):
 
     system_messages = {entity_class: f"I am an excellent linguist. The task is to label {entity_class} entities "
                        "in the given sentence. Below are some examples:" for entity_class in args.entity_classes}
-    prompter = ClarifaiPrompter(args.user_id, args.app_id, args.pat)
+    prompter = ClarifaiPrompter(args.user_id, args.app_id, args.pat, args.max_tokens)
 
     last_episode_id = args.first_episode + args.n_episodes if args.n_episodes else None
 
@@ -129,6 +129,12 @@ if __name__ == '__main__':
         type=int,
         default=None,
         help='Number of episodes to predict'
+    )
+    parser.add_argument(
+        '--max_tokens',
+        type=int,
+        default=100,
+        help="Max number of tokens to generate"
     )
 
     arguments = parser.parse_args()
