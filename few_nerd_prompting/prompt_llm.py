@@ -2,10 +2,13 @@ import argparse
 import logging
 import json
 
+from itertools import islice
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
+
 from read_few_nerd import FewNerdEpisodesSet
 from clarifai_prompter import ClarifaiPrompter
-from prompt_building_utils import build_llama2_prompt_plain, build_self_verification_prompt_plain, labels_from_output
-from prompt_building_utils import extract_predicted_entities
+from prompt_building_utils import build_llama2_prompt_plain, labels_from_output
 
 logging.basicConfig(format="{asctime} {levelname}: {message}",
                     style="{", level=logging.INFO)
@@ -16,66 +19,63 @@ def main(args):
 
     system_messages = {entity_class: f"I am an excellent linguist. The task is to label {entity_class} entities "
                        "in the given sentence. Below are some examples:" for entity_class in args.entity_classes}
-    system_messages_verification = {entity_class: f"The task is to verify whether the word is a "
-                                    f"{entity_class} entity extracted from the given sentence"
-                                    for entity_class in args.entity_classes}
-    prompter = ClarifaiPrompter(args.user_id, args.app_id, args.pat)
+    prompter = ClarifaiPrompter(args.user_id, args.app_id, args.pat, args.max_tokens)
+
+    last_episode_id = args.first_episode + args.n_episodes if args.n_episodes else None
 
     with open(args.output_file, 'w', encoding='utf8') as out_fh:
+        episode_id = args.first_episode
+        for episode in islice(all_episodes.episodes, args.first_episode, last_episode_id):
+            results = {episode_id: {"text": {entity_class: [] for entity_class in args.entity_classes},
+                                    "label": {entity_class: [] for entity_class in args.entity_classes}}}
+            logging.info(f"Episode {episode_id}")
 
-        episode_counter = 0
-        for episode in all_episodes.episodes:
-            if episode_counter > args.max_episodes:
-                break
-            result = {"text": {entity_class: [] for entity_class in args.entity_classes},
-                      "label": {entity_class: [] for entity_class in args.entity_classes}}
-            logging.info(f"Episode {episode_counter}")
+            raw_texts_ner = []
+            for entity_class in args.entity_classes:
+                episode.gpt_ner_examples_from_episode(entity_class)
+                raw_texts_ner.extend([
+                    (build_llama2_prompt_plain(few_shot_examples=zip(episode.support_input_examples,
+                                                                     episode.support_output_examples),
+                                               system_msg=system_messages[entity_class],
+                                               input_example=query_input_example),
+                     (episode_id, entity_class, i))
+                    for i, query_input_example in enumerate(episode.query_input_examples)
+                ])
+
+            threads = []
+            output_first_lines = {entity_class: [] for entity_class in args.entity_classes}
+
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                for raw_text, query_index in tqdm(
+                    raw_texts_ner,
+                    total=len(episode.query_input_examples) * len(args.entity_classes),
+                    desc="Getting predictions (submit)"
+                ):
+                    threads.append(executor.submit(prompter.predict, args.model_id, raw_text, query_index))
+
+                for task in tqdm(as_completed(threads), total=len(raw_texts_ner), desc='Getting predictions (results)'):
+                    result_text, (received_episode_id, entity_class, query_id) = task.result()
+                    output_first_lines[entity_class].append((result_text.split('\n')[0], query_id))
 
             for entity_class in args.entity_classes:
-                logging.info(f"Class: {entity_class}")
                 episode.gpt_ner_examples_from_episode(entity_class)
+                results[episode_id]["text"][entity_class] = [t[0] for t
+                                                             in sorted(output_first_lines[entity_class],
+                                                                       key=lambda x: x[1])]
+                for output, input_tokens in zip(results[episode_id]["text"][entity_class],
+                                                episode.query_tokens):
+                    try:
+                        class_labels = labels_from_output(output, input_tokens, entity_class)
+                    except IndexError:
+                        class_labels = []
+                    results[episode_id]["label"][entity_class].append(class_labels)
 
-                for query_input_example, input_tokens, correct_output in zip(
-                        episode.query_input_examples, episode.query_tokens, episode.query_output_examples
-                ):
-                    raw_text_ner = build_llama2_prompt_plain(few_shot_examples=zip(episode.support_input_examples,
-                                                                                   episode.support_output_examples),
-                                                             system_msg=system_messages[entity_class],
-                                                             input_example=query_input_example)
-                    logging.debug("PROMPT:\n")
-                    logging.debug(raw_text_ner + '\n')
-                    output = prompter.predict(args.model_id, [raw_text_ner])[0]
-                    output_first_line = output.split('\n')[0]
+                logging.info(f"CLASS: {entity_class}")
+                logging.info(f"OUTPUT (1st lines): {results[episode_id]['text'][entity_class]}")
+                logging.info(f"CORRECT OUTPUT: {episode.query_output_examples}")
 
-                    logging.info(f"OUTPUT (1st line): {output_first_line}")
-                    logging.info(f"CORRECT OUTPUT: {correct_output}")
-
-                    result["text"][entity_class].append(output_first_line)
-                    result["label"][entity_class].append(labels_from_output(output_first_line,
-                                                                            input_tokens,
-                                                                            entity_class))
-
-                    extracted_entities = extract_predicted_entities(output_first_line)
-                    logging.info(f"PREDICTED ENTITIES: {extracted_entities}")
-
-                    if args.verification:
-                        if extracted_entities:
-                            raw_texts_verification = [build_self_verification_prompt_plain(
-                                system_msg=system_messages_verification[entity_class],
-                                input_example=query_input_example,
-                                candidate_entity=candidate,
-                                entity_class=entity_class
-                            )
-                                for candidate in extracted_entities]
-
-                            for verification_prompt in raw_texts_verification:
-                                verification_output = prompter.predict(args.model_id, [verification_prompt])[0]
-                                logging.debug("VERIFICATION PROMPT:\n")
-                                logging.debug(verification_prompt + '\n')
-                                logging.info(f"VERIFICATION OUTPUT: {verification_output}")
-
-            out_fh.write(json.dumps(result) + "\n")
-            episode_counter += 1
+            out_fh.write(json.dumps(results) + "\n")
+            episode_id += 1
 
 
 if __name__ == '__main__':
@@ -119,15 +119,22 @@ if __name__ == '__main__':
         help='Output file.'
     )
     parser.add_argument(
-        '--max_episodes',
-        default=10,
+        '--first_episode',
         type=int,
-        help='Max episodes to process (primarily for testing purposes)'
+        default=0,
+        help='Index of the first episode to predict (0-based)'
     )
     parser.add_argument(
-        '--verification',
-        action='store_true',
-        help='Use self-verification'
+        '--n_episodes',
+        type=int,
+        default=None,
+        help='Number of episodes to predict'
+    )
+    parser.add_argument(
+        '--max_tokens',
+        type=int,
+        default=100,
+        help="Max number of tokens to generate"
     )
 
     arguments = parser.parse_args()
