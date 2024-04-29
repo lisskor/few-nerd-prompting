@@ -30,7 +30,7 @@ def get_true_labels(filename: str, entity_class: str, pred_ids: List[int] = None
             all_true_labels[episode_id] = []
             episode.gpt_ner_examples_from_episode(entity_class)
             if coarse_grained:
-                all_true_labels[episode_id].extend([single_class(coarse_grained_from_fine_grained(query), entity_class)
+                all_true_labels[episode_id].extend([labels_to_bio(single_class(coarse_grained_from_fine_grained(query), entity_class))
                                                     for query in episode.query_labels])
             else:
                 all_true_labels[episode_id].extend(episode.query_labels)
@@ -40,23 +40,39 @@ def get_true_labels(filename: str, entity_class: str, pred_ids: List[int] = None
     return all_true_labels
 
 
+def labels_to_bio(labels: List[str]) -> List[str]:
+    result = []
+    chunk_started = False
+    for label in labels:
+        if label == 'O':
+            result.append(label)
+            chunk_started = False
+        elif label != 'O' and not chunk_started:
+            result.append(f"B-{label}")
+            chunk_started = True
+        elif label != '0' and chunk_started:
+            result.append(f"I-{label}")
+    return result
+
+
 def read_predicted_labels_single_class(filename: str, entity_class: str) -> Dict[int, List[List[str]]]:
     all_predicted_labels = {}
     with open(filename, 'r', encoding="utf8") as fh:
         for line in fh.readlines():
             prediction = json.loads(line.strip())
             episode_id = list(prediction.keys())[0]
-            all_predicted_labels.setdefault(int(episode_id), prediction[episode_id]['label'][entity_class])
+            all_predicted_labels.setdefault(int(episode_id),
+                                            [labels_to_bio(p) for p in prediction[episode_id]['label'][entity_class]])
     return all_predicted_labels
 
 
-def report(y_true: List[List[str]], y_pred: List[List[str]]):
+def report(y_true: List[List[str]], y_pred: List[List[str]], round_to):
     assert([len(s) for s in y_true] == [len(s) for s in y_pred]), "Token counts do not match"
 
-    print(f"ACC: {accuracy_score(y_true, y_pred)}")
-    print(f"PREC: {precision_score(y_true, y_pred)}")
-    print(f"REC: {recall_score(y_true, y_pred)}")
-    print(f"F1: {f1_score(y_true, y_pred)}")
+    print(f"ACC: {round(accuracy_score(y_true, y_pred), round_to)}")
+    print(f"PREC: {round(precision_score(y_true, y_pred), round_to)}")
+    print(f"REC: {round(recall_score(y_true, y_pred), round_to)}")
+    print(f"F1: {round(f1_score(y_true, y_pred), round_to)}")
     # print(classification_report(y_true, y_pred))
 
 
@@ -78,7 +94,7 @@ def main(args):
             if not pred_flattened[i]:
                 pred_flattened[i] = ["O"] * len(true_flattened[i])
 
-        report(true_flattened, pred_flattened)
+        report(true_flattened, pred_flattened, args.decimal_places)
 
 
 if __name__ == '__main__':
@@ -99,6 +115,12 @@ if __name__ == '__main__':
         type=str,
         nargs='+',
         help='Entity classes for current demonstration & input.'
+    )
+    parser.add_argument(
+        '-d', '--decimal_places',
+        default=3,
+        type=int,
+        help='Round scores in output to N decimal places.'
     )
 
     arguments = parser.parse_args()
