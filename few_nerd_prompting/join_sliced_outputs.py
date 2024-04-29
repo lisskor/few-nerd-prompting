@@ -1,8 +1,19 @@
 import argparse
 import json
 
+from typing import List
 
-def process_files(input_files, output_file):
+
+def process_files(input_files: List[str], output_file: str) -> None:
+    """
+    Process a list of input files containing JSON-formatted lines,
+    extract numeric keys from each JSON object, sort lines based on
+    the keys, write the sorted lines to the output file.
+
+    :param input_files: list of input files
+    :param output_file: path to write merged and sorted output
+    :return: None
+    """
     all_lines = []
 
     # Read lines from each input file
