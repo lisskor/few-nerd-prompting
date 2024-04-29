@@ -66,22 +66,12 @@ def read_predicted_labels_single_class(filename: str, entity_class: str) -> Dict
     return all_predicted_labels
 
 
-def report(y_true: List[List[str]], y_pred: List[List[str]], round_to):
-    assert([len(s) for s in y_true] == [len(s) for s in y_pred]), "Token counts do not match"
+def build_report(entity_classes: List[str], pred_file: str, true_file: str, round_to: int) -> str:
+    result = ""
 
-    print(f"ACC: {round(accuracy_score(y_true, y_pred), round_to)}")
-    print(f"PREC: {round(precision_score(y_true, y_pred), round_to)}")
-    print(f"REC: {round(recall_score(y_true, y_pred), round_to)}")
-    print(f"F1: {round(f1_score(y_true, y_pred), round_to)}")
-    # print(classification_report(y_true, y_pred))
-
-
-def main(args):
-    for entity_class in args.entity_classes:
-        pred_labels = read_predicted_labels_single_class(args.pred_file, entity_class)
-        true_labels = get_true_labels(args.few_nerd_file, entity_class, [key for key, value in sorted(pred_labels.items())])
-
-        logging.info(f"Class: {entity_class}")
+    for entity_class in entity_classes:
+        pred_labels = read_predicted_labels_single_class(pred_file, entity_class)
+        true_labels = get_true_labels(true_file, entity_class, [key for key, value in sorted(pred_labels.items())])
 
         # Transform predicted and true labels from dicts into lists
         sorted_true_list = [value for key, value in sorted(true_labels.items())]
@@ -94,7 +84,28 @@ def main(args):
             if not pred_flattened[i]:
                 pred_flattened[i] = ["O"] * len(true_flattened[i])
 
-        report(true_flattened, pred_flattened, args.decimal_places)
+        class_report = report(true_flattened, pred_flattened, round_to)
+
+        if not result:
+            result += class_report.split("\n")[0]
+            result += "\n\n"
+
+        result += class_report.split("\n")[2]
+        result += "\n"
+
+    return result
+
+
+def report(y_true: List[List[str]], y_pred: List[List[str]], round_to) -> str:
+    assert([len(s) for s in y_true] == [len(s) for s in y_pred]), "Token counts do not match"
+    return classification_report(y_true, y_pred, digits=round_to)
+
+
+def main(args):
+    scores = build_report(entity_classes=args.entity_classes, pred_file=args.pred_file,
+                          true_file=args.few_nerd_file, round_to=args.decimal_places)
+    logging.info("Scores:")
+    print(scores)
 
 
 if __name__ == '__main__':
