@@ -19,7 +19,8 @@ To use Clarifai, [sign up for a Free Account](https://clarifai.com/signup) or lo
 
 **Few-NERD**
 
-Download the [Few-NERD from the link](https://ningding97.github.io/fewnerd/).
+Download the [Few-NERD dataset from the link](https://ningding97.github.io/fewnerd/) 
+(use sampled Few-NERD to get episode data; see the [Few-NERD repo](https://github.com/thunlp/Few-NERD) for detailed instructions).
 
 ## 💪 Usage
 To use LLMs for few-shot NER, run
