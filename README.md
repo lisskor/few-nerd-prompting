@@ -53,3 +53,21 @@ Finally, you can calculate the metrics to assess the quality of obtained predict
 ```
 python few_nerd_prompting/evaluate_outputs.py --few_nerd_file GROUND_TRUTH_FILE --pred_file PREDICTIONS_FILE --entity_classes CLASSES
 ```
+
+## 📚 Related Blogs
+Read the related blog posts from Clarifai here:
+- [Do LLMs Reign Supreme in Few-Shot NER?](https://www.clarifai.com/blog/do-llms-reign-supreme-in-few-shot-ner)
+- [Do LLMs Reign Supreme in Few-Shot NER? Part II](https://www.clarifai.com/blog/do-llms-reign-supreme-in-few-shot-ner-part-ii)
+- [Do LLMs Reign Supreme in Few-Shot NER? Part III]()
+
+
+## Citation
+If you found this repository useful, please consider citing:
+```
+@misc{wang2021gpt,
+  title={FewNERD LLM Prompting},
+  author={Elizaveta Korotkova and Isaac Chung},
+  year={2024},
+  url={https://github.com/lisskor/few-nerd-prompting}
+}
+```
