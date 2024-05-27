@@ -1,6 +1,7 @@
 # FewNERD LLM Prompting
 
-[![Python 3.8](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/release/python-370/) [![](https://img.shields.io/github/license/lisskor/few-nerd-prompting.svg)](https://github.com/lisskor/few-nerd-prompting/blob/main/LICENSE)
+[![Python 3.8](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/release/python-380/) 
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/lisskor/few-nerd-prompting/blob/main/LICENSE)
 
 This repository uses [Clarifai](https://www.clarifai.com/) to prompt an LLM and perform few-shot NER on the [Few-NERD dataset](https://aclanthology.org/2021.acl-long.248/) using methods described in the [GPT-NER](https://github.com/ShuheWang1998/GPT-NER) paper. 
 
