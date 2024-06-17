@@ -23,13 +23,40 @@ To use Clarifai, [sign up for a Free Account](https://clarifai.com/signup) or lo
 Download the [Few-NERD dataset from the link](https://ningding97.github.io/fewnerd/) 
 (use sampled Few-NERD to get episode data; see the [Few-NERD repo](https://github.com/thunlp/Few-NERD) for detailed instructions).
 
+The expected directory structure is:
+
+```
+Few-NERD
+├── data
+│   ├── episode-data
+│   │   ├── inter
+│   │   │   ├── dev_10_1.jsonl
+│   │   │   ├── ...
+│   │   └── intra
+│   │       ├── dev_10_1.jsonl
+│   │       ├── ...
+│   ├── inter
+│   │   ├── dev.txt
+│   │   ├── test.txt
+│   │   └── train.txt
+│   ├── intra
+│   │   ├── dev.txt
+│   │   ├── test.txt
+│   │   └── train.txt
+│   └── supervised
+│       ├── dev.txt
+│       ├── test.txt
+│       └── train.txt
+├── ...
+```
+
 ## 💪 Usage
 To use LLMs for few-shot NER, run
 ```
 python few_nerd_prompting/prompt_llm.py --pat CLARIFAI_PAT --data_file FEW_NERD_EPISODES_FILE --entity_classes CLASSES --output_file OUT_FILE
 ```
 
-`--data_file` should be the path to a file containing Few-NERD episode data. 
+`--data_file` should be the path to a file containing Few-NERD episode data, e.g. `Few-NERD/data/episode-data/inter/dev_10_1.jsonl`. 
 `--entity_classes` is the list of named entity types the model will be prompted to identify, e.g. `person location event`.
 
 By default, the script will use the [Llama 2 7b-chat](https://clarifai.com/meta/Llama-2/models/llama2-7b-chat) model.
