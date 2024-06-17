@@ -25,13 +25,15 @@ def main(args):
                       for entity_class in args.entity_classes}
     prompter = ClarifaiPrompter(args.user_id, args.app_id, args.pat, args.max_tokens)
 
+    # first_episode with 0-based indexing
+    first_episode = args.first_episode - 1
     # Calculate ID of the last episode to process based on the first episode and number of episodes.
     # If no number of episodes is given, process all episodes starting from the first episode
-    last_episode_id = args.first_episode + args.n_episodes if args.n_episodes else None
+    last_episode_id = first_episode + args.n_episodes if args.n_episodes else None
 
     with open(args.output_file, 'w', encoding='utf8') as out_fh:
-        episode_id = args.first_episode
-        for episode in islice(all_episodes.episodes, args.first_episode, last_episode_id):
+        episode_id = first_episode
+        for episode in islice(all_episodes.episodes, first_episode, last_episode_id):
             results = {episode_id: {"text": {entity_class: [] for entity_class in args.entity_classes},
                                     "label": {entity_class: [] for entity_class in args.entity_classes}}}
             logging.info(f"Episode {episode_id}")
@@ -144,8 +146,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--first_episode',
         type=int,
-        default=0,
-        help='Index of the first episode to predict (0-based)'
+        default=1,
+        help='Index of the first episode to predict (1-based)'
     )
     parser.add_argument(
         '--n_episodes',
