@@ -6,7 +6,19 @@ TAG_START = "@@"
 TAG_END = "##"
 
 
-def make_output_example(sentence: str, labels: List[str], entity_class: str) -> str:
+def make_output_example(sentence: List[str], labels: List[str], entity_class: str) -> str:
+    """
+    Add entity start and end tags to the input text to obtain an output example (for a single entity class at a time).
+    E.g. sentence = ["I", "am", "in", "Tallinn", "."], 
+         labels = ["O", "O", "O", "location", "O"],
+         entity_class = "location"
+    -> 'I am in @@Tallinn## .'
+    
+    :param sentence: list of tokens
+    :param labels: list of token labels
+    :param entity_class: entity class (e.g. "person", "location" etc.)
+    :return: output text with tags around the entities belonging to the class in question
+    """
     sentence_list = []
     # Keep track of whether we are currently writing an entity that needs to be marked
     entity_in_progress = False
@@ -30,10 +42,17 @@ def make_output_example(sentence: str, labels: List[str], entity_class: str) -> 
 
 
 def output_well_formed(sentence: str) -> bool:
-    # Check that output is well-formed:
-    # each TAG_START has a corresponding TAG_END,
-    # the entities do not overlap (each one is closed before next is opened)
-
+    """
+    Check whether the sentence with entity tags is well-formed: 
+    each TAG_START has a corresponding TAG_END,
+    the entities do not overlap (each one is closed before next is opened).
+    E.g. "We live in @@New York##." -> True
+         "We live in @@New York." -> False
+         "We live in @@New @@York##." -> False
+    
+    :param sentence: string which may contain entity tags
+    :return: True if sentence is well-formed, False otherwise
+    """
     # TODO: do we need to check for things like "@!"? How to find them?
 
     start, end = 0, len(sentence)
@@ -78,6 +97,13 @@ def output_well_formed(sentence: str) -> bool:
 
 
 def extract_predicted_entities(sentence: str) -> List[str]:
+    """
+    Extract predicted entities from sentences with entity start and end tags.
+    E.g. "I am in @@New York##." -> ['New York']
+    
+    :param sentence: sentence string which may include named entities marked with start and end tags
+    :return: list of marked entities
+    """
     predicted_entities = []
     start, end = 0, len(sentence)
     # Look for TAG_START
@@ -97,24 +123,57 @@ def extract_predicted_entities(sentence: str) -> List[str]:
     return predicted_entities
 
 
-def build_llama2_prompt(few_shot_examples: List[str], system_msg: str, input_example: str) -> str:
-    # Prompt with <s>[INST] <<SYS>> ... <</SYS>> ... [/INST]
+def build_llama2_prompt(
+        few_shot_examples: Iterator[Tuple[str, str]], system_msg: str, instr_msg: str, input_example: str
+) -> str:
+    """
+    Create prompt for Llama 2 with <s>[INST] <<SYS>> ... <</SYS>> ... [/INST]
+    <s> - the beginning of the entire sequence
+    <<SYS>> - the beginning of the system message
+    <</SYS>> - the end of the system message
+    [INST] - the beginning of some instructions
+    [/INST] - the end of the instructions
+    
+    :param few_shot_examples: iterable containing pairs of input and output few-shot examples
+    :param system_msg: system message
+    :param instr_msg: instruction message
+    :param input_example: input example to predict for
+    :return: full prompt
+    """
     few_shot_examples_string = "\n".join([f"Input: {example[0]}\nOutput: {example[1]}"
                                           for example in few_shot_examples])
     input_example_string = f"Input: {input_example}"
-    return f"<s>[INST] <<SYS>>\n{system_msg}\n{few_shot_examples_string}<</SYS>>\n{input_example_string}\nOutput: [/INST]"
+    return f"<s>[INST] <<SYS>>\n{system_msg}\n<</SYS>>\n{instr_msg}\n{few_shot_examples_string}\n{input_example_string}\nOutput: [/INST]"
 
 
-def build_llama2_prompt_plain(few_shot_examples: Iterator[Tuple[str, str]], system_msg: str, input_example: str) -> str:
-    # Plain text prompt, no special tokens
-    # Works better for this task
+def build_llama2_prompt_plain(
+        few_shot_examples: Iterator[Tuple[str, str]], system_msg: str, instr_msg: str, input_example: str
+) -> str:
+    """
+    Create plain text prompt for Llama 2 without special tokens.
+    
+    :param few_shot_examples: iterable containing pairs of input and output few-shot examples
+    :param system_msg: system message
+    :param instr_msg: instruction message
+    :param input_example: input example to predict for
+    :return: full prompt
+    """
     few_shot_examples_string = "\n".join([f"Input: {example[0]}\nOutput: {example[1]}"
                                           for example in few_shot_examples])
     input_example_string = f"Input: {input_example}"
-    return f"{system_msg}\n{few_shot_examples_string}\n{input_example_string}\nOutput: "
+    return f"{system_msg} {instr_msg}\n{few_shot_examples_string}\n{input_example_string}\nOutput: "
 
 
 def build_self_verification_prompt_plain(system_msg: str, input_example: str, candidate_entity: str, entity_class: str) -> str:
+    """
+    Create plain text prompt for the self-verification step.
+    
+    :param system_msg: system message
+    :param input_example: input sentence
+    :param candidate_entity: predicted entity
+    :param entity_class: the entity class to verify
+    :return: full prompt
+    """
     # TODO: how to build the self-verification prompt properly with Few-NERD episodes?
     # How to choose which tokens to ask about in the few-shot examples?
 
@@ -127,6 +186,19 @@ def build_self_verification_prompt_plain(system_msg: str, input_example: str, ca
 
 
 def labels_from_output(llm_output: str, input_tokens: List[str], entity_class: str) -> List[str]:
+    """
+    Given a generated output sentence, a list of original input tokens for that sentence, and an entity class,
+    create a list of predicted token labels.
+    E.g. llm_output = " the @@geisel library## is considered his legacy at ucsd.",
+         tokens = ["the", "geisel", "library", "is", "considered", "his", "legacy", "at", "ucsd", "."],
+         entity_class = "building"
+    -> ["O", "building", "building", "O", "O", "O", "O", "O", "O", "O"]
+    
+    :param llm_output: a generated sentence with predicted entities marked with start and end tags
+    :param input_tokens: list of original input tokens
+    :param entity_class: entity class
+    :return: list of token labels
+    """
     # TODO: What to do with different punctuation in input and output? e.g. ``` vs. ``
     # TODO: What to do when tokens don't match? e.g. "ohne filter" translated into "without filter"
     predicted_entities = extract_predicted_entities(llm_output)
