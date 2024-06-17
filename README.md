@@ -65,10 +65,11 @@ You can replace it with any other compatible model by changing the `--model_id`,
 You may want to run the model on a subset of the full dataset, e.g.
 
 ```
-python few_nerd_prompting/prompt_llm.py --first_episode 0 --n_episodes 10 --pat CLARIFAI_PAT --data_file FEW_NERD_EPISODES_FILE --entity_classes CLASSES --output_file OUT_FILE
+python few_nerd_prompting/prompt_llm.py --first_episode 10 --n_episodes 5 --pat CLARIFAI_PAT --data_file FEW_NERD_EPISODES_FILE --entity_classes CLASSES --output_file OUT_FILE
 ```
 
-will only predict for the first 10 episodes of the dataset. If you processed the dataset in chunks like this, 
+will predict for episodes 10-14 of the dataset (processing 5 episodes starting with the 10th episode, one-based). 
+If you processed the dataset in chunks like this, 
 you can then merge the outputs into one file:
 
 ```
