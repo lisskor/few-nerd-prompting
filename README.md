@@ -92,7 +92,7 @@ Read the related blog posts from Clarifai here:
 ## Citation
 If you found this repository useful, please consider citing:
 ```
-@misc{wang2021gpt,
+@misc{korotkova-2024-llama-2-few-shot-ner,
   title={FewNERD LLM Prompting},
   author={Elizaveta Korotkova and Isaac Chung},
   year={2024},
